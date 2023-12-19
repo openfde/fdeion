@@ -151,4 +151,4 @@ int fdeion_add_cma_heaps(void)
     return 0;
 }
 
-// device_initcall(fdeion_add_cma_heaps);
+
