@@ -2,7 +2,7 @@
 /*
  * FDEION Memory Allocator system heap exporter
  *
- * Copyright (C) 2011 Google, Inc.
+ * Copyright (C) 2023 OpenFDE
  */
 
 #include <asm/page.h>
@@ -385,4 +385,4 @@ int fdeion_system_contig_heap_create(void)
 
     return 0;
 }
-//device_initcall(fdeion_system_contig_heap_create);
+
