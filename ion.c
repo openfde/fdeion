@@ -2,7 +2,7 @@
 /*
  * FDEION Memory Allocator
  *
- * Copyright (C) 2011 Google, Inc.
+ * Copyright (C) 2023 OpenFDE
  */
 
 #include <linux/module.h>
