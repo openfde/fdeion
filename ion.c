@@ -758,7 +758,7 @@ static int __init fdeion_init(void)
     dev  = pci_get_drvdata(pci);
     d = dev->dev_private;
     idis = d;
-    pr_debug("memory_pool = %p vram_addr = %p", d->memory_pool, d->r[1]);
+    pr_debug("memory_pool = %p vram_addr = %p", d->memory_pool, d->b2);
 
     fde_cma_release = (fde_cma_release_t)(kallsyms_lookup_name("cma_release"));
     if (!fde_cma_release)
@@ -827,4 +827,4 @@ module_exit(fdeion_exit);
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("OpenFDE");
 MODULE_DESCRIPTION("A fdeion driver for reading/writing page table entries");
-MODULE_VERSION("1.0");
+MODULE_VERSION("1.2");
