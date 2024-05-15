@@ -21,6 +21,8 @@
 
 #include "../uapi/ion.h"
 #include "dc_include/x100_display_drv.h"
+#define x100_vendor 0x1db7
+#define x100_device 0xdc22
 
 /**
  * struct ion_platform_heap - defines a heap in the given platform
@@ -132,6 +134,7 @@ typedef int (*fde_cma_for_each_area_t)(int (*it)(struct cma *cma, void *data), v
 typedef void (*fde_plist_add_t)(struct plist_node *node, struct plist_head *head);
 typedef const char * (*fde_cma_get_name_t)(const struct cma *cma);
 typedef struct page *(*fde_cma_alloc_t)(struct cma *cma, size_t count, unsigned int align, bool no_warn);
+typedef void (*fde_plist_add_t)(struct plist_node *node, struct plist_head *head);
 
 extern fde_cma_release_t fde_cma_release;
 extern fde_plist_add_t fde_plist_add;
@@ -139,6 +142,9 @@ extern fde_cma_for_each_area_t fde_cma_for_each_area;
 extern fde_cma_get_name_t fde_cma_get_name;
 extern fde_cma_alloc_t fde_cma_alloc;
 
+int fdeion_memory_pool_alloc(struct x100_display *d, void **pvaddr,
+					phys_addr_t *phys_addr, uint64_t size);
+void fdeion_memory_pool_free(struct x100_display *d, void *vaddr, uint64_t size);
 /**
  * heap flags - flags between the heaps and core ion code
  */
@@ -194,9 +200,11 @@ struct ion_heap {
 	spinlock_t free_lock;
 	wait_queue_head_t waitqueue;
 	struct task_struct *task;
+	u64 num_of_buffers;
+	u64 num_of_alloc_bytes;
+	u64 alloc_bytes_wm;
+	spinlock_t stat_lock;
 
-	int (*debug_show)(struct ion_heap *heap, struct seq_file *s,
-			  void *unused);
 };
 
 /**

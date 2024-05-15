@@ -5,7 +5,8 @@
  * Copyright (C) 2011 Google, Inc.
  */
 
-#include <linux/anon_inodes.h>
+#include <linux/module.h>
+
 #include <linux/debugfs.h>
 #include <linux/device.h>
 #include <linux/dma-buf.h>
@@ -14,16 +15,13 @@
 #include <linux/file.h>
 #include <linux/freezer.h>
 #include <linux/fs.h>
-#include <linux/idr.h>
 #include <linux/kthread.h>
 #include <linux/list.h>
-#include <linux/memblock.h>
 #include <linux/miscdevice.h>
 #include <linux/mm.h>
 #include <linux/mm_types.h>
 #include <linux/rbtree.h>
 #include <linux/sched/task.h>
-#include <linux/seq_file.h>
 #include <linux/slab.h>
 #include <linux/uaccess.h>
 #include <linux/vmalloc.h>
@@ -32,43 +30,13 @@
 #include <linux/pci.h>
 #include <drm/drm_drv.h>
 #include <linux/genalloc.h>
-#include <linux/plist.h>
 
 #include "ion.h"
-
-typedef void (*fde_plist_add_t)(struct plist_node *node, struct plist_head *head);
 
 static struct ion_device *internal_dev;
 static int heap_id;
 static struct x100_display *idis;
 
-
-/* this function should only be called while dev->lock is held */
-/*static void ion_buffer_add(struct ion_device *dev,
-			   struct ion_buffer *buffer)
-{
-	struct rb_node **p = &dev->buffers.rb_node;
-	struct rb_node *parent = NULL;
-	struct ion_buffer *entry;
-
-	while (*p) {
-		parent = *p;
-		entry = rb_entry(parent, struct ion_buffer, node);
-
-		if (buffer < entry) {
-			p = &(*p)->rb_left;
-		} else if (buffer > entry) {
-			p = &(*p)->rb_right;
-		} else {
-			pr_err("%s: buffer already found.", __func__);
-			BUG();
-		}
-	}
-
-	rb_link_node(&buffer->node, parent, p);
-	rb_insert_color(&buffer->node, &dev->buffers);
-}
-*/
 
 /* this function should only be called while dev->lock is held */
 static struct ion_buffer *ion_buffer_create(struct ion_heap *heap,
@@ -106,13 +74,17 @@ static struct ion_buffer *ion_buffer_create(struct ion_heap *heap,
 		ret = -EINVAL;
 		goto err1;
 	}
+    spin_lock(&heap->stat_lock);
+    heap->num_of_buffers++;
+    heap->num_of_alloc_bytes += len;
+    idis->mem_state[X100_MEM_VRAM_ALLOC] += len;
+    if (heap->num_of_alloc_bytes > heap->alloc_bytes_wm)
+        heap->alloc_bytes_wm = heap->num_of_alloc_bytes;
+    spin_unlock(&heap->stat_lock);
 
-	INIT_LIST_HEAD(&buffer->attachments);
-	mutex_init(&buffer->lock);
-	mutex_lock(&dev->buffer_lock);
-	//ion_buffer_add(dev, buffer);
-	mutex_unlock(&dev->buffer_lock);
-	return buffer;
+    INIT_LIST_HEAD(&buffer->attachments);
+    mutex_init(&buffer->lock);
+    return buffer;
 
 err1:
 	heap->ops->free(buffer);
@@ -123,23 +95,25 @@ err2:
 
 void ion_buffer_destroy(struct ion_buffer *buffer)
 {
-	if (buffer->kmap_cnt > 0) {
-		pr_warn_once("%s: buffer still mapped in the kernel\n",
-			     __func__);
-		buffer->heap->ops->unmap_kernel(buffer->heap, buffer);
-	}
-	buffer->heap->ops->free(buffer);
-	kfree(buffer);
+    if (buffer->kmap_cnt > 0)
+    {
+        pr_warn_once("%s: buffer still mapped in the kernel\n",
+                     __func__);
+        buffer->heap->ops->unmap_kernel(buffer->heap, buffer);
+    }
+    buffer->heap->ops->free(buffer);
+    spin_lock(&buffer->heap->stat_lock);
+    buffer->heap->num_of_buffers--;
+    buffer->heap->num_of_alloc_bytes -= buffer->size;
+    idis->mem_state[X100_MEM_VRAM_ALLOC] -= buffer->size;
+    spin_unlock(&buffer->heap->stat_lock);
+
+    kfree(buffer);
 }
 
 static void _ion_buffer_destroy(struct ion_buffer *buffer)
 {
 	struct ion_heap *heap = buffer->heap;
-	struct ion_device *dev = buffer->dev;
-
-	mutex_lock(&dev->buffer_lock);
-	rb_erase(&buffer->node, &dev->buffers);
-	mutex_unlock(&dev->buffer_lock);
 
 	if (heap->flags & ION_HEAP_FLAG_DEFER_FREE)
 		ion_heap_freelist_add(heap, buffer);
@@ -152,6 +126,8 @@ static void *ion_buffer_kmap_get(struct ion_buffer *buffer)
 	void *vaddr;
 
 	if (buffer->kmap_cnt) {
+		if (buffer->kmap_cnt == INT_MAX)
+			return ERR_PTR(-EOVERFLOW);
 		buffer->kmap_cnt++;
 		return buffer->vaddr;
 	}
@@ -540,12 +516,15 @@ void ion_device_add_heap(struct ion_heap *heap)
 {
 	struct ion_device *dev = internal_dev;
 	int ret;
+	struct dentry * heap_root;
+	char debug_name[64];
 
 	if (!heap->ops->allocate || !heap->ops->free)
 		pr_err("%s: can not add heap with invalid ops struct.\n",
 		       __func__);
 
 	spin_lock_init(&heap->free_lock);
+	spin_lock_init(&heap->stat_lock);
 	heap->free_list_size = 0;
 
 	if (heap->flags & ION_HEAP_FLAG_DEFER_FREE)
@@ -558,6 +537,33 @@ void ion_device_add_heap(struct ion_heap *heap)
 	}
 
 	heap->dev = dev;
+	heap->num_of_buffers = 0;
+	heap->num_of_alloc_bytes = 0;
+	heap->alloc_bytes_wm = 0;
+
+	heap_root = debugfs_create_dir(heap->name,dev->debug_root);
+    debugfs_create_u64("num_of_buffers",
+                       0444, heap_root,
+                       &heap->num_of_buffers);
+    debugfs_create_u64("num_of_alloc_bytes",
+                       0444,
+                       heap_root,
+                       &heap->num_of_alloc_bytes);
+    debugfs_create_u64("alloc_bytes_wm",
+                       0444,
+                       heap_root,
+                       &heap->alloc_bytes_wm);
+
+    if (heap->shrinker.count_objects &&
+        heap->shrinker.scan_objects)
+    {
+        snprintf(debug_name, 64, "%s_shrink", heap->name);
+        debugfs_create_file(debug_name,
+                            0644,
+                            heap_root,
+                            heap,
+                            &debug_shrink_fops);
+    }
 	down_write(&dev->lock);
 	heap->id = heap_id++;
 	/*
@@ -567,13 +573,6 @@ void ion_device_add_heap(struct ion_heap *heap)
 	plist_node_init(&heap->node, -heap->id);
 	fde_plist_add(&heap->node, &dev->heaps);
 
-	if (heap->shrinker.count_objects && heap->shrinker.scan_objects) {
-		char debug_name[64];
-
-		snprintf(debug_name, 64, "%s_shrink", heap->name);
-		debugfs_create_file(debug_name, 0644, dev->debug_root,
-				    heap, &debug_shrink_fops);
-	}
 
 	dev->heap_cnt++;
 	up_write(&dev->lock);
@@ -601,17 +600,15 @@ static int  ion_device_create(void)
 	}
 
 	idev->debug_root = debugfs_create_dir("ion", NULL);
-	idev->buffers = RB_ROOT;
-	mutex_init(&idev->buffer_lock);
 	init_rwsem(&idev->lock);
 	plist_head_init(&idev->heaps);
 	internal_dev = idev;
 	return 0;
 }
 
-extern int ion_system_heap_create(void);
-extern int ion_system_contig_heap_create(void);
-extern int ion_add_cma_heaps(void);
+int ion_add_cma_heaps(void);
+int ion_system_heap_create(void);
+int ion_system_contig_heap_create(void);
 
 fde_cma_release_t fde_cma_release = NULL;
 fde_plist_add_t fde_plist_add = NULL;
@@ -619,8 +616,45 @@ fde_cma_for_each_area_t fde_cma_for_each_area = NULL;
 fde_cma_get_name_t fde_cma_get_name = NULL;
 fde_cma_alloc_t fde_cma_alloc = NULL;
 
+void fdeion_memory_pool_free(struct x100_display *d, void *vaddr, uint64_t size)
+{
+    gen_pool_free(d->memory_pool, (unsigned long)vaddr, size);
+}
+
+int fdeion_memory_pool_alloc(struct x100_display *d, void **pvaddr,
+					phys_addr_t *phys_addr, uint64_t size)
+{
+    unsigned long vaddr;
+
+    size = PAGE_ALIGN(size);
+    vaddr = gen_pool_alloc(d->memory_pool, size);
+    if (!vaddr)
+        return -ENOMEM;
+
+    *phys_addr = gen_pool_virt_to_phys(d->memory_pool, vaddr);
+
+    *pvaddr = (void *)vaddr;
+    return 0;
+}
+
+
 static int __init fdeion_init(void)
 {
+    int ret;
+    /* get pci dc data */
+    struct pci_dev *pci;
+    struct drm_device *dev;
+    struct x100_display *d;
+    pci = pci_get_device(x100_vendor, x100_device, NULL);
+    if(!pci) {
+        printk(KERN_ERR "Failed to get dc pci device!\n");
+        return -EFAULT;
+    }
+    dev  = pci_get_drvdata(pci);
+    d = dev->dev_private;
+    idis = d;
+    pr_debug("memory_pool = %p vram_addr = %p", d->memory_pool, d->b2);
+
     fde_cma_release = (fde_cma_release_t)(kallsyms_lookup_name("cma_release"));
     if (!fde_cma_release)
     {
@@ -659,9 +693,9 @@ static int __init fdeion_init(void)
         return -EFAULT;
     }
     ion_device_create();
-    ion_add_cma_heaps();
     ion_system_contig_heap_create();    
     ion_system_heap_create();
+    ion_add_cma_heaps();
     return 0;
 
 }
