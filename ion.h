@@ -19,7 +19,7 @@
 #include <linux/types.h>
 #include <linux/miscdevice.h>
 
-#include "../uapi/ion.h"
+#include "uapi_ion.h"
 #include "dc_include/x100_display_drv.h"
 #define x100_vendor 0x1db7
 #define x100_device 0xdc22
