@@ -654,6 +654,7 @@ static int __init fdeion_init(void)
     d = dev->dev_private;
     idis = d;
     pr_debug("memory_pool = %p vram_addr = %p", d->memory_pool, d->b2);
+	printk(KERN_ERR "memory_pool = %p", d->memory_pool);
 
     fde_cma_release = (fde_cma_release_t)(kallsyms_lookup_name("cma_release"));
     if (!fde_cma_release)

@@ -117,7 +117,18 @@ static struct ion_heap_ops ion_cma_ops = {
 	.unmap_kernel = fdeion_cma_heap_unmap_kernel,
 };
 
-static struct ion_heap *__ion_cma_heap_create(struct cma *cma)
+static struct ion_heap *__ion_cma_heap_create(void)
+{
+	struct ion_heap *heap;
+
+	heap = kzalloc(sizeof(*heap), GFP_KERNEL);
+	if (!heap)
+		return ERR_PTR(-ENOMEM);
+	heap->ops = &ion_cma_ops;
+	heap->type = ION_HEAP_TYPE_DMA;
+	return heap;
+}
+/*static struct ion_heap *__ion_cma_heap_create(struct cma *cma)
 {
 	struct ion_cma_heap *cma_heap;
 
@@ -127,24 +138,27 @@ static struct ion_heap *__ion_cma_heap_create(struct cma *cma)
 		return ERR_PTR(-ENOMEM);
 
 	cma_heap->heap.ops = &ion_cma_ops;
+	*/
 	/*
 	 * get device from private heaps data, later it will be
 	 * used to make the link with reserved CMA memory
 	 */
-	cma_heap->cma = cma;
+/*	cma_heap->cma = cma;
 	cma_heap->heap.type = ION_HEAP_TYPE_DMA;
 	return &cma_heap->heap;
 }
+*/
 
-static int __ion_add_cma_heaps(struct cma *cma, void *data)
+static int __ion_add_cma_heaps(void)
 {
 	struct ion_heap *heap;
 
-	heap = __ion_cma_heap_create(cma);
+	heap = __ion_cma_heap_create();
 	if (IS_ERR(heap))
 		return PTR_ERR(heap);
 
-	heap->name = fde_cma_get_name(cma);
+	heap->name = "reserved";
+		//fde_cma_get_name(cma);
 
 	ion_device_add_heap(heap);
 	return 0;
@@ -152,7 +166,8 @@ static int __ion_add_cma_heaps(struct cma *cma, void *data)
 
 int ion_add_cma_heaps(void)
 {
-	fde_cma_for_each_area(__ion_add_cma_heaps, NULL);
+	__ion_add_cma_heaps();
+	//fde_cma_for_each_area(__ion_add_cma_heaps, NULL);
 	return 0;
 }
 //device_initcall(ion_add_cma_heaps);
