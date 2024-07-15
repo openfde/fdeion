@@ -129,18 +129,9 @@ struct ion_heap_ops {
 	int (*shrink)(struct ion_heap *heap, gfp_t gfp_mask, int nr_to_scan);
 };
 
-typedef bool (*fde_cma_release_t)(struct cma *cma, const struct page *pages, unsigned int count);
-typedef int (*fde_cma_for_each_area_t)(int (*it)(struct cma *cma, void *data), void *data);
-typedef void (*fde_plist_add_t)(struct plist_node *node, struct plist_head *head);
-typedef const char * (*fde_cma_get_name_t)(const struct cma *cma);
-typedef struct page *(*fde_cma_alloc_t)(struct cma *cma, size_t count, unsigned int align, bool no_warn);
 typedef void (*fde_plist_add_t)(struct plist_node *node, struct plist_head *head);
 
-extern fde_cma_release_t fde_cma_release;
 extern fde_plist_add_t fde_plist_add;
-extern fde_cma_for_each_area_t fde_cma_for_each_area;
-extern fde_cma_get_name_t fde_cma_get_name;
-extern fde_cma_alloc_t fde_cma_alloc;
 
 int fdeion_memory_pool_alloc(struct x100_display *d, void **pvaddr,
 					phys_addr_t *phys_addr, uint64_t size);

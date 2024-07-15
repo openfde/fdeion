@@ -610,11 +610,7 @@ int ion_add_cma_heaps(void);
 int ion_system_heap_create(void);
 int ion_system_contig_heap_create(void);
 
-fde_cma_release_t fde_cma_release = NULL;
 fde_plist_add_t fde_plist_add = NULL;
-fde_cma_for_each_area_t fde_cma_for_each_area = NULL;
-fde_cma_get_name_t fde_cma_get_name = NULL;
-fde_cma_alloc_t fde_cma_alloc = NULL;
 
 void fdeion_memory_pool_free(struct x100_display *d, void *vaddr, uint64_t size)
 {
@@ -640,7 +636,6 @@ int fdeion_memory_pool_alloc(struct x100_display *d, void **pvaddr,
 
 static int __init fdeion_init(void)
 {
-    int ret;
     /* get pci dc data */
     struct pci_dev *pci;
     struct drm_device *dev;
@@ -654,22 +649,6 @@ static int __init fdeion_init(void)
     d = dev->dev_private;
     idis = d;
     pr_debug("memory_pool = %p vram_addr = %p", d->memory_pool, d->b2);
-	printk(KERN_ERR "memory_pool = %p", d->memory_pool);
-
-    fde_cma_release = (fde_cma_release_t)(kallsyms_lookup_name("cma_release"));
-    if (!fde_cma_release)
-    {
-        printk(KERN_ERR "Failed to find cma_release function address\n");
-        return -EFAULT;
-    }
-
-    // 获取 cma_for_each_area
-    fde_cma_for_each_area = (fde_cma_for_each_area_t)(kallsyms_lookup_name("cma_for_each_area"));
-    if (!fde_cma_for_each_area)
-    {
-        printk(KERN_ERR "Failed to find cma_for_each_area function address\n");
-        return -EFAULT;
-    }
 
     // 获取 plist_add 
     fde_plist_add = (fde_plist_add_t)(kallsyms_lookup_name("plist_add"));
@@ -678,21 +657,7 @@ static int __init fdeion_init(void)
 	printk(KERN_ERR "Failed to find plist_add function address\n");
 	return -EFAULT;
     }
-    // 获取 cma_get_name
-    fde_cma_get_name = (fde_cma_get_name_t)(kallsyms_lookup_name("cma_get_name"));
-    if (!fde_cma_get_name)
-    {
-        printk(KERN_ERR "Failed to find cma_get_name function address\n");
-        return -EFAULT;
-    }
 
-    // 获取 cma_alloc
-    fde_cma_alloc = (fde_cma_alloc_t)(kallsyms_lookup_name("cma_alloc"));
-    if (!fde_cma_alloc)
-    {
-        printk(KERN_ERR "Failed to find cma_alloc function address\n");
-        return -EFAULT;
-    }
     ion_device_create();
     ion_system_contig_heap_create();    
     ion_system_heap_create();
