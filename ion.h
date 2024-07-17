@@ -22,7 +22,7 @@
 #include "uapi_ion.h"
 #include "dc_include/x100_display_drv.h"
 #define x100_vendor 0x1db7
-#define x100_device 0xdc22
+#define x100_device 0xdc20
 
 /**
  * struct ion_platform_heap - defines a heap in the given platform

@@ -31,6 +31,59 @@
 #include <drm/drm_drv.h>
 #include <linux/genalloc.h>
 
+#include <linux/version.h>
+
+#include "ion.h"
+
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 7, 0) || LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 33)
+
+#include <linux/kprobes.h>
+
+static unsigned long (*kallsyms_lookup_name_sym)(const char *name);
+
+static int _kallsyms_lookup_kprobe(struct kprobe *p, struct pt_regs *regs)
+{
+        return 0;
+}
+
+unsigned long get_kallsyms_func(void)
+{
+        struct kprobe probe;
+        int ret;
+        unsigned long addr;
+
+        memset(&probe, 0, sizeof(probe));
+        probe.pre_handler = _kallsyms_lookup_kprobe;
+        probe.symbol_name = "kallsyms_lookup_name";
+        ret = register_kprobe(&probe);
+        if (ret)
+                return 0;
+        addr = (unsigned long)probe.addr;
+        unregister_kprobe(&probe);
+        return addr;
+}
+
+unsigned long generic_kallsyms_lookup_name(const char *name)
+{
+        /* singleton */
+        if (!kallsyms_lookup_name_sym) {
+                kallsyms_lookup_name_sym = (void *)get_kallsyms_func();
+                if(!kallsyms_lookup_name_sym)
+                        return 0;
+        }
+        return kallsyms_lookup_name_sym(name);
+}
+
+#else
+
+unsigned long generic_kallsyms_lookup_name(const char *name)
+    return kallsyms_lookup_name(name);
+}
+
+#endif
+
+
 #include "ion.h"
 
 static struct ion_device *internal_dev;
@@ -363,8 +416,8 @@ static const struct dma_buf_ops dma_buf_ops = {
 	.detach = ion_dma_buf_detatch,
 	.begin_cpu_access = ion_dma_buf_begin_cpu_access,
 	.end_cpu_access = ion_dma_buf_end_cpu_access,
-	.map = ion_dma_buf_kmap,
-	.unmap = ion_dma_buf_kunmap,
+	//.map = ion_dma_buf_kmap,
+	//.unmap = ion_dma_buf_kunmap,
 };
 
 int ion_alloc(size_t len, unsigned int heap_id_mask, unsigned int flags)
@@ -646,17 +699,27 @@ static int __init fdeion_init(void)
         return -EFAULT;
     }
     dev  = pci_get_drvdata(pci);
+	if (!dev) {
+		printk(KERN_EMERG "FUNC: %s, FILE: %s, LINE: %d,\n", __FUNCTION__, __FILE__, __LINE__);
+		return -EFAULT;
+
+	}
     d = dev->dev_private;
+	if (!d) {
+		printk(KERN_EMERG "FUNC: %s, FILE: %s, LINE: %d,\n", __FUNCTION__, __FILE__, __LINE__);
+		return -EFAULT;
+
+	}
     idis = d;
     pr_debug("memory_pool = %p vram_addr = %p", d->memory_pool, d->b2);
-
     // 获取 plist_add 
-    fde_plist_add = (fde_plist_add_t)(kallsyms_lookup_name("plist_add"));
+    fde_plist_add = (fde_plist_add_t)(generic_kallsyms_lookup_name("plist_add"));
     if (!fde_plist_add)
     {
 	printk(KERN_ERR "Failed to find plist_add function address\n");
 	return -EFAULT;
     }
+    printk(KERN_ERR "address: 0x%x\n", (unsigned long)fde_plist_add);
 
     ion_device_create();
     ion_system_contig_heap_create();    
