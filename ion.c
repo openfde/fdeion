@@ -679,6 +679,6 @@ module_exit(fdeion_exit);
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("OpenFDE");
 MODULE_DESCRIPTION("A fdeion driver for reading/writing page table entries");
-MODULE_VERSION("1.2");
+MODULE_VERSION("2.1");
 
 //subsys_initcall(ion_device_create);

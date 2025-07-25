@@ -26,11 +26,19 @@ struct rese{
        unsigned char a3;
        unsigned char a4;
        unsigned char a5;
+#ifdef NEW_DC
+       bool b1;
+       unsigned char b2[2];
+       unsigned int b3;
+#endif
        unsigned int a6;
        unsigned int a7;
        unsigned int a8;
        unsigned int a9;
        unsigned long a10;
+#ifdef NEW_DC
+       int *hold;
+#endif
 };
 
 struct x100_display {
