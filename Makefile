@@ -18,7 +18,7 @@ $(info it is uos )
 $(info greate than 7020)
 		CFLAG = -DNEW_DC
 	else
-$(info less than and equal  7020)
+$(info less than and equal  7300)
 		CFLAG =
 	endif
 else ifeq ($(KERNEL_VERSION),5.4.18)
