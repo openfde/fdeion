@@ -1,10 +1,9 @@
 
 CURRENT = $(shell uname -r )
 KERN_DIR = /lib/modules/$(CURRENT)/build
-KERNEL_VERSION_SIMPLE = $(shell uname -r | cut -d'-' -f1)
-KERNEL_VERSION = $(shell echo $(KERNEL_VERSION_SIMPLE) | cut -d'.' -f1-3)
+KERNEL_VERSION = $(shell uname -r | cut -d'-' -f1)
 $(info KERNEL_VERSION: $(KERNEL_VERSION))
-PATCH_VERSION = $(shell echo $(KERNEL_VERSION_SIMPLE) | cut -d'.' -f4)
+PATCH_VERSION = $(shell uname -r | cut -d'-' -f2)
 $(info PATCH_VERSION: $(PATCH_VERSION))
 COMPILE_INDEX_UOS = $(shell uname -a | cut -d ' ' -f 4  )
 HASH := \#
