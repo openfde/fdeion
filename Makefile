@@ -14,7 +14,7 @@ $(info COMPILE_INDEX_UOS: $(COMPILE_INDEX))
 
 ifeq ($(KERNEL_VERSION_SIMPLE),4.19.0)
 $(info it is uos )
-	ifeq ($(shell test $(COMPILE_INDEX) -gt 7020 && echo true),true)
+	ifeq ($(shell test $(COMPILE_INDEX) -gt 7300 && echo true),true)
 $(info greate than 7020)
 		CFLAG = -DNEW_DC
 	else
