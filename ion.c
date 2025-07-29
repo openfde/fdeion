@@ -152,7 +152,6 @@ static void fdeion_buffer_kmap_put(struct fdeion_buffer *buffer)
     if (!buffer->kmap_cnt)
     {
         buffer->heap->ops->unmap_kernel(buffer->heap, buffer);
-        buffer->vaddr = NULL;
     }
 }
 
