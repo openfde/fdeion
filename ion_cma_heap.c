@@ -35,10 +35,15 @@ static void fdeion_cma_free(struct ion_buffer *buffer)
     if (buffer->vaddr)
     {
         fdeion_memory_pool_free(display, buffer->vaddr, buffer->size);
+        buffer->vaddr = NULL;
     }
     /* release sg table */
-    sg_free_table(buffer->sg_table);
-    kfree(buffer->sg_table);
+    if (buffer->sg_table){
+    	sg_free_table(buffer->sg_table);
+    	kfree(buffer->sg_table);
+	buffer->sg_table = NULL;
+    }
+    buffer->priv_virt = NULL;
 }
 /* ION CMA heap operations functions */
 static int ion_cma_allocate(struct ion_heap *heap, struct ion_buffer *buffer,
