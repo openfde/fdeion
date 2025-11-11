@@ -1,6 +1,11 @@
 
-CURRENT = $(shell uname -r )
-KERN_DIR = /lib/modules/$(CURRENT)/build
+ifeq ($(KERNEL_SRC),)
+  ifeq ($(KDIR),)
+    KDIR := /lib/modules/$(shell uname -r)/build
+  endif
+else
+  KDIR := $(KERNEL_SRC)
+endif
 KERNEL_VERSION_SIMPLE = $(shell uname -r | cut -d'-' -f1)
 KERNEL_VERSION = $(shell echo $(KERNEL_VERSION_SIMPLE) | cut -d'.' -f1-3)
 $(info KERNEL_VERSION: $(KERNEL_VERSION))
@@ -33,10 +38,10 @@ $(info patch number less and equal 125)
 endif
 
 all:
-	make -C $(KERN_DIR) M=`pwd` EXTRA_CFLAGS="$(CFLAG)" modules
+	make -C $(KDIR) M=`pwd` EXTRA_CFLAGS="$(CFLAG)" modules
 
 clean:
-	make -C $(KERN_DIR) M=`pwd` modules clean
+	make -C $(KDIR) M=`pwd` modules clean
 	rm -rf modules.order
 
 obj-m += fdeion.o
